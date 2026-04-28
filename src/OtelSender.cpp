@@ -110,14 +110,15 @@ String OTelSender::fullUrl_(const char* path) {
 
 // Executes a single POST. Handles plain HTTP and HTTPS transparently based on
 // the URL scheme. Custom headers are applied after Content-Type.
-static void doPost_(const String& url, const String& payload, const char* path) {
+static void doPost_(const String& url, const String& payload,
+                    const char* path, const char* contentType) {
   HTTPClient http;
   const auto& hdrs = headersForPath_(path);
 
   // Lambda keeps the send logic in one place regardless of client type.
   auto fire = [&](bool ok) {
     if (!ok) return;
-    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Content-Type", contentType);
     for (const auto& h : hdrs) http.addHeader(h.first, h.second);
     (void)http.POST(payload);
     http.end();
@@ -142,7 +143,7 @@ static void doPost_(const String& url, const String& payload, const char* path) 
 
 // ---------- Queue (SPSC) ----------
 
-bool OTelSender::enqueue_(const char* path, String&& payload) {
+bool OTelSender::enqueue_(const char* path, const char* contentType, String&& payload) {
   size_t h = head_.load(std::memory_order_relaxed);
   size_t t = tail_.load(std::memory_order_acquire);
   size_t next = (h + 1) % QCAP;
@@ -154,8 +155,9 @@ bool OTelSender::enqueue_(const char* path, String&& payload) {
     drops_.fetch_add(1, std::memory_order_relaxed);
   }
 
-  q_[h].path = path;
-  q_[h].payload = std::move(payload);
+  q_[h].path        = path;
+  q_[h].contentType = contentType;
+  q_[h].payload     = std::move(payload);
   head_.store(next, std::memory_order_release);
   return true;
 }
@@ -178,7 +180,7 @@ void OTelSender::pumpOnce_() {
   OTelQueuedItem it;
   if (!dequeue_(it)) return;
 #if OTEL_SEND_ENABLE
-  doPost_(fullUrl_(it.path), it.payload, it.path);
+  doPost_(fullUrl_(it.path), it.payload, it.path, it.contentType);
 #endif
 }
 
@@ -188,7 +190,7 @@ void OTelSender::workerLoop_() {
       OTelQueuedItem it;
       if (!dequeue_(it)) break;
 #if OTEL_SEND_ENABLE
-      doPost_(fullUrl_(it.path), it.payload, it.path);
+      doPost_(fullUrl_(it.path), it.payload, it.path, it.contentType);
 #endif
     }
     delay(OTEL_WORKER_SLEEP_MS);
@@ -222,6 +224,9 @@ bool OTelSender::queueIsHealthy() {
 
 // ---------- Public send API ----------
 
+static constexpr const char* kContentTypeJson  = "application/json";
+static constexpr const char* kContentTypeProto = "application/x-protobuf";
+
 void OTelSender::sendJson(const char* path, JsonDocument& doc) {
 #if !OTEL_SEND_ENABLE
   (void)path; (void)doc;
@@ -232,9 +237,29 @@ void OTelSender::sendJson(const char* path, JsonDocument& doc) {
 
 #ifdef ARDUINO_ARCH_RP2040
   launchWorkerOnce_();
-  enqueue_(path, std::move(payload));
+  enqueue_(path, kContentTypeJson, std::move(payload));
 #else
-  doPost_(fullUrl_(path), payload, path);
+  doPost_(fullUrl_(path), payload, path, kContentTypeJson);
+#endif
+#endif
+}
+
+void OTelSender::sendProto(const char* path, const uint8_t* buf, size_t len) {
+#if !OTEL_SEND_ENABLE
+  (void)path; (void)buf; (void)len;
+  return;
+#else
+  // Copy raw bytes into a String to reuse the existing queue/send path.
+  // The String is treated as an opaque byte container, not a text string.
+  String payload;
+  payload.reserve(len);
+  for (size_t i = 0; i < len; ++i) payload += (char)buf[i];
+
+#ifdef ARDUINO_ARCH_RP2040
+  launchWorkerOnce_();
+  enqueue_(path, kContentTypeProto, std::move(payload));
+#else
+  doPost_(fullUrl_(path), payload, path, kContentTypeProto);
 #endif
 #endif
 }

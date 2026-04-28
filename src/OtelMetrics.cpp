@@ -42,6 +42,13 @@ void Metrics::buildAndSendGauge(const String& name, double value,
                                 const String& unit,
                                 const std::map<String,String>& labels)
 {
+#if OTEL_EXPORTER_OTLP_PROTOCOL == OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
+  {
+    auto merged = defaultMetricLabels();
+    for (const auto& kv : labels) merged[kv.first] = kv.second;
+    OTel::Proto::sendGauge(name, value, unit, merged);
+  }
+#else
   JsonDocument doc;
 
   JsonArray resourceMetrics = doc["resourceMetrics"].to<JsonArray>();
@@ -74,6 +81,7 @@ void Metrics::buildAndSendGauge(const String& name, double value,
   addPointAttributes(attrs, labels);
 
   OTelSender::sendJson("/v1/metrics", doc);
+#endif  // OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 }
 
 // ----------------- SUM -------------------
@@ -83,6 +91,14 @@ void Metrics::buildAndSendSum(const String& name, double value,
                               const String& unit,
                               const std::map<String,String>& labels)
 {
+#if OTEL_EXPORTER_OTLP_PROTOCOL == OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
+  {
+    auto merged = defaultMetricLabels();
+    for (const auto& kv : labels) merged[kv.first] = kv.second;
+    int temporalityInt = (temporality == "CUMULATIVE") ? 2 : 1;
+    OTel::Proto::sendSum(name, value, isMonotonic, temporalityInt, unit, merged);
+  }
+#else
   JsonDocument doc;
 
   JsonArray resourceMetrics = doc["resourceMetrics"].to<JsonArray>();
@@ -128,6 +144,7 @@ void Metrics::buildAndSendSum(const String& name, double value,
   addPointAttributes(attrs, labels);
 
   OTelSender::sendJson("/v1/metrics", doc);
+#endif  // OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 }
 
 } // namespace OTel
