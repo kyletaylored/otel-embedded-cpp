@@ -40,5 +40,22 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/proffalken/otel-embedded-cpp.git"
-  }
+  },
+  "examples": [
+    {
+      "name": "Basic",
+      "base": "examples/basic",
+      "files": ["main.cpp", "README.md"]
+    },
+    {
+      "name": "Direct OTLP",
+      "base": "examples/direct_otlp",
+      "files": ["main.cpp", "README.md"]
+    },
+    {
+      "name": "Protobuf OTLP",
+      "base": "examples/proto_otlp",
+      "files": ["main.cpp"]
+    }
+  ]
 }

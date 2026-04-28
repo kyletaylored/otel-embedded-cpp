@@ -51,7 +51,18 @@ jobs:
       - name: Build src for ESP8266 (d1_mini)
         run: platformio ci src/main.cpp --project-conf platformio.ini --lib "." -e esp8266
 
-      # ── examples/direct_otlp (validates OTLP exporter configuration) ───────
+      # ── examples/basic (minimal heartbeat, collector-based setup) ────────────
+
+      - name: Build basic example for ESP32 (esp32dev)
+        run: platformio ci examples/basic/main.cpp --project-conf platformio.ini --lib "." -e esp32dev
+
+      - name: Build basic example for Pico W (rpipicow)
+        run: platformio ci examples/basic/main.cpp --project-conf platformio.ini --lib "." -e rpipicow
+
+      - name: Build basic example for ESP8266 (d1_mini)
+        run: platformio ci examples/basic/main.cpp --project-conf platformio.ini --lib "." -e esp8266
+
+      # ── examples/direct_otlp (validates OTLP exporter configuration) ─────────
 
       - name: Build direct_otlp example for ESP32 (esp32dev)
         run: platformio ci examples/direct_otlp/main.cpp --project-conf platformio.ini --lib "." -e esp32dev
@@ -61,3 +72,16 @@ jobs:
 
       - name: Build direct_otlp example for ESP8266 (d1_mini)
         run: platformio ci examples/direct_otlp/main.cpp --project-conf platformio.ini --lib "." -e esp8266
+
+      # ── examples/proto_otlp (validates protobuf encoding path) ───────────────
+      # Uses dedicated *-proto envs in platformio.ini that inherit their base
+      # env and add -DOTEL_EXPORTER_OTLP_PROTOCOL=...HTTP_PROTOBUF.
+
+      - name: Build proto_otlp example for ESP32 (esp32dev-proto)
+        run: platformio ci examples/proto_otlp/main.cpp --project-conf platformio.ini --lib "." -e esp32dev-proto
+
+      - name: Build proto_otlp example for Pico W (rpipicow-proto)
+        run: platformio ci examples/proto_otlp/main.cpp --project-conf platformio.ini --lib "." -e rpipicow-proto
+
+      - name: Build proto_otlp example for ESP8266 (esp8266-proto)
+        run: platformio ci examples/proto_otlp/main.cpp --project-conf platformio.ini --lib "." -e esp8266-proto
