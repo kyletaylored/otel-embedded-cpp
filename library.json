@@ -35,6 +35,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/otel-embedded-cpp.git"
+    "url": "https://github.com/proffalken/otel-embedded-cpp.git"
   }
 }
