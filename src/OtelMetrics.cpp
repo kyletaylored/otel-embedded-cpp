@@ -104,9 +104,17 @@ void Metrics::buildAndSendSum(const String& name, double value,
   metric["unit"] = unit;
   metric["type"] = "sum";
 
+  // OTLP JSON encodes AggregationTemporality as an integer enum, not a string.
+  // AGGREGATION_TEMPORALITY_CUMULATIVE = 1, AGGREGATION_TEMPORALITY_DELTA = 2.
+  // Previously this sent the raw string (e.g. "DELTA"), which is not spec-compliant.
+  // Spec-compliant collectors (including Datadog direct OTLP) require the integer.
+  // Collectors that were previously accepting the string may silently ignore or
+  // default the field — switching to the integer is the correct behaviour.
+  // The public API (passing "DELTA" / "CUMULATIVE" to sum()) is unchanged.
+  int temporalityInt = (temporality == "CUMULATIVE") ? 1 : 2; // default to DELTA
   JsonObject sum = metric["sum"].to<JsonObject>();
-  sum["isMonotonic"]           = isMonotonic;
-  sum["aggregationTemporality"] = temporality; // "DELTA" or "CUMULATIVE"
+  sum["isMonotonic"]            = isMonotonic;
+  sum["aggregationTemporality"] = temporalityInt;
 
   JsonArray dps = sum["dataPoints"].to<JsonArray>();
   JsonObject dp = dps.add<JsonObject>();
