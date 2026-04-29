@@ -4,6 +4,7 @@ namespace OTel {
 
 #if OTEL_EXPORTER_OTLP_PROTOCOL != OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 
+/** Append default metric labels then per-call labels to @p attrArray as OTLP KeyValue objects. */
 static void addPointAttributes(JsonArray& attrArray,
                                const std::map<String, String>& callLabels) {
   for (const auto& kv : defaultMetricLabels()) {
@@ -18,6 +19,7 @@ static void addPointAttributes(JsonArray& attrArray,
   }
 }
 
+/** Populate the OTLP resource object from defaultResource() or compile-time defaults. */
 static void addCommonResource(JsonObject& resource) {
   auto &res = OTel::defaultResource();
   if (!res.empty()) {
@@ -30,6 +32,7 @@ static void addCommonResource(JsonObject& resource) {
   addResAttr(rattrs, "host.name",           defaultHostName());
 }
 
+/** Write the instrumentation scope name and version into @p scope. */
 static void addCommonScope(JsonObject& scope) {
   scope["name"]    = metricsScopeConfig().scopeName;
   scope["version"] = metricsScopeConfig().scopeVersion;

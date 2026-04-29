@@ -101,27 +101,56 @@
 #define OTEL_QUEUE_CAPACITY 16
 #endif
 
+/** Internal queue item for the RP2040 SPSC ring buffer (core-0 → core-1). */
 struct OTelQueuedItem {
   const char* path;        // "/v1/logs", "/v1/traces", "/v1/metrics"
   const char* contentType; // "application/json" or "application/x-protobuf"
   String payload;          // serialized body (JSON text or raw protobuf bytes)
 };
 
+/**
+ * Low-level OTLP/HTTP sender used by Logger, Tracer, and Metrics.
+ *
+ * On RP2040 the actual HTTP calls run on core 1 via a SPSC ring buffer so
+ * that loop() on core 0 is never blocked.  On ESP32/ESP8266 the send is
+ * synchronous.  Call @c beginAsyncWorker() once after Wi-Fi comes up.
+ */
 class OTelSender {
 public:
-  // Send a JSON document (OTLP/HTTP JSON, Content-Type: application/json)
+  /**
+   * Serialise @p doc to JSON and send it to the collector at @p path.
+   * @param path  OTLP signal path: "/v1/logs", "/v1/metrics", or "/v1/traces".
+   * @param doc   ArduinoJson document representing the OTLP payload.
+   */
   static void sendJson(const char* path, JsonDocument& doc);
 
-  // Send a pre-encoded protobuf buffer (OTLP/HTTP Protobuf,
-  // Content-Type: application/x-protobuf). Used by OtelProtoEncoder.
+  /**
+   * Send a pre-encoded protobuf buffer to the collector at @p path.
+   * Used by OtelProtoEncoder when @c OTEL_EXPORTER_OTLP_PROTOCOL is set to
+   * @c OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF.
+   * @param path  OTLP signal path.
+   * @param buf   Pointer to the encoded protobuf bytes.
+   * @param len   Length of the buffer in bytes.
+   */
   static void sendProto(const char* path, const uint8_t* buf, size_t len);
 
-  // Start the RP2040 core-1 worker (no-op on non-RP2040). Call once after Wi-Fi is ready.
+  /**
+   * Start the RP2040 core-1 worker thread.
+   * No-op on ESP32/ESP8266.  Call once after Wi-Fi is ready.
+   */
   static void beginAsyncWorker();
 
-  // Diagnostics (published via your health metrics if you like)
-  static uint32_t droppedCount();   // number of items dropped due to full queue
-  static bool     queueIsHealthy(); // worker started?
+  /**
+   * @return Number of payloads dropped because the internal queue was full.
+   *         Monitor this with a gauge metric to detect back-pressure.
+   */
+  static uint32_t droppedCount();
+
+  /**
+   * @return True if the async worker has been started (RP2040) or always
+   *         true on synchronous platforms.
+   */
+  static bool     queueIsHealthy();
 
 private:
   // ---------- SPSC ring buffer (core0 producer -> core1 consumer) ----------
