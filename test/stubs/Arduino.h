@@ -1,7 +1,8 @@
 #pragma once
 // Minimal Arduino shim for native (Linux/macOS) unit tests.
 // Provides just enough of the Arduino API surface that otel-embedded-cpp
-// headers can be compiled on a host toolchain without modification.
+// headers (and ArduinoJson's Arduino-mode polyfills) compile on a host
+// toolchain without modification.
 
 #ifndef ARDUINO
 #define ARDUINO 100
@@ -12,6 +13,45 @@
 #include <string.h>
 #include <string>
 #include <cstdio>
+#include <cstdarg>
+
+// ── pgmspace (AVR flash memory — identity on native) ─────────────────────────
+#define pgm_read_byte(addr)  (*((const uint8_t  *)(addr)))
+#define pgm_read_word(addr)  (*((const uint16_t *)(addr)))
+#define pgm_read_ptr(addr)   (*((const void* const*)(addr)))
+#define PROGMEM
+#define PGM_P                const char*
+#define PSTR(s)              (s)
+
+// ── Flash string helper ───────────────────────────────────────────────────────
+// ArduinoJson checks for __FlashStringHelper in several headers.
+// On native it is just an opaque type; cast via F().
+struct __FlashStringHelper {};
+#define F(x) (reinterpret_cast<const __FlashStringHelper*>(x))
+
+// ── Print / Printable / Stream ────────────────────────────────────────────────
+// ArduinoJson uses these as base-class constraints in its adapters.
+class Print {
+public:
+  virtual size_t write(uint8_t)               { return 0; }
+  virtual size_t write(const uint8_t*, size_t n) { return n; }
+  size_t print(const char* s)   { return write((const uint8_t*)s, strlen(s)); }
+  size_t println(const char* s = "") { return print(s) + write((uint8_t)'\n'); }
+  virtual ~Print() = default;
+};
+
+class Printable {
+public:
+  virtual size_t printTo(Print&) const = 0;
+  virtual ~Printable() = default;
+};
+
+class Stream : public Print {
+public:
+  virtual int available() { return 0; }
+  virtual int read()      { return -1; }
+  virtual int peek()      { return -1; }
+};
 
 // ── String ────────────────────────────────────────────────────────────────────
 // std::string subclass that adds the Arduino-compatible constructors and
@@ -57,27 +97,24 @@ inline String operator+(const char* a, const String& b) {
   return String(std::string(a) + std::string(b));
 }
 
-// ── Flash string ──────────────────────────────────────────────────────────────
-#define F(x) (x)
-
 // ── Serial stub ───────────────────────────────────────────────────────────────
 struct HardwareSerial {
   void begin(unsigned long) {}
-  template<typename T>         size_t print(T)           { return 0; }
-  template<typename T>         size_t println(T)         { return 0; }
-  template<typename T, int U>  size_t print(T, int)      { return 0; }
-  template<typename T, int U>  size_t println(T, int)    { return 0; }
-  size_t println()                                        { return 0; }
-  void   printf(const char*, ...)                         {}
+  template<typename T>        size_t print(T)        { return 0; }
+  template<typename T>        size_t println(T)      { return 0; }
+  template<typename T, int U> size_t print(T, int)   { return 0; }
+  template<typename T, int U> size_t println(T, int) { return 0; }
+  size_t println()                                    { return 0; }
+  void   printf(const char*, ...)                     {}
 };
 static HardwareSerial Serial;
 
 // ── Timing stubs ──────────────────────────────────────────────────────────────
-static inline unsigned long millis()  { return 0; }
-static inline unsigned long micros()  { return 0; }
-static inline void delay(unsigned long) {}
+static inline unsigned long millis()        { return 0; }
+static inline unsigned long micros()        { return 0; }
+static inline void delay(unsigned long)     {}
 
 // ── PRNG ──────────────────────────────────────────────────────────────────────
 static inline void randomSeed(unsigned long seed) { srand((unsigned int)seed); }
-static inline long random(long max) { return (long)(rand() % max); }
-static inline long random(long min, long max) { return min + (long)(rand() % (max - min)); }
+static inline long random(long hi)                { return (long)(rand() % hi); }
+static inline long random(long lo, long hi)       { return lo + (long)(rand() % (hi - lo)); }
