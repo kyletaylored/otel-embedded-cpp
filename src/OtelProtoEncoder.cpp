@@ -2,17 +2,12 @@
 
 #if OTEL_EXPORTER_OTLP_PROTOCOL == OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 
-// Pull in the nanopb-generated descriptor tables. Using .inc avoids
-// PlatformIO auto-compiling these as independent translation units.
-#include "proto/opentelemetry/proto/common/v1/common.pb.inc"
-#include "proto/opentelemetry/proto/resource/v1/resource.pb.inc"
-#include "proto/opentelemetry/proto/metrics/v1/metrics.pb.inc"
-#include "proto/opentelemetry/proto/logs/v1/logs.pb.inc"
-
-#include "proto/opentelemetry/proto/common/v1/common.pb.h"
-#include "proto/opentelemetry/proto/resource/v1/resource.pb.h"
-#include "proto/opentelemetry/proto/metrics/v1/metrics.pb.h"
-#include "proto/opentelemetry/proto/logs/v1/logs.pb.h"
+// Nanopb-generated OTLP descriptors — provided by aodtorusan/opentelemetry_proto.
+// PlatformIO compiles the library's .pb.c files automatically; no .pb.inc hack needed.
+#include "opentelemetry/proto/common/v1/common.pb.h"
+#include "opentelemetry/proto/resource/v1/resource.pb.h"
+#include "opentelemetry/proto/metrics/v1/metrics.pb.h"
+#include "opentelemetry/proto/logs/v1/logs.pb.h"
 
 #include "OtelProtoEncoder.h"
 #include "OtelTracer.h"   // defaultServiceName(), defaultServiceInstanceId(), defaultHostName()

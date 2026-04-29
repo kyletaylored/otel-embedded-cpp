@@ -35,6 +35,10 @@
     {
       "name": "nanopb/Nanopb",
       "version": "^0.4.91"
+    },
+    {
+      "name": "aodtorusan/opentelemetry_proto",
+      "version": "^1.9.0"
     }
   ],
   "build": {
