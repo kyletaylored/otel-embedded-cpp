@@ -52,7 +52,7 @@ jobs:
       # GCC is pre-installed on ubuntu-latest; no extra toolchain step needed.
 
       - name: Run native unit tests
-        run: pio test -e native --project-dir . --project-conf platformio.ini
+        run: pio test -e native
 
       # ── src/main.cpp (existing integration test) ───────────────────────────
 
