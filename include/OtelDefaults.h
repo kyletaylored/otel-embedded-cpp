@@ -1,6 +1,7 @@
 #ifndef OTEL_DEFAULTS_H
 #define OTEL_DEFAULTS_H
 
+#include <Arduino.h>
 #include <map>
 #include <ArduinoJson.h>
 #include <sys/time.h>  // gettimeofday()

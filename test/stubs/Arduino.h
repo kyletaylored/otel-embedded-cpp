@@ -35,6 +35,10 @@ public:
     auto p = find(c, from);
     return p == npos ? -1 : (int)p;
   }
+  int indexOf(const String& s, unsigned int from = 0) const {
+    auto p = find(s, from);
+    return p == npos ? -1 : (int)p;
+  }
   String substring(unsigned int from, unsigned int to = 0) const {
     return to ? String(substr(from, to - from)) : String(substr(from));
   }
