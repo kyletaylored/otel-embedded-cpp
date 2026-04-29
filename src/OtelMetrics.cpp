@@ -2,16 +2,15 @@
 
 namespace OTel {
 
-// Helper: merge default + per-call labels into a datapoint attributes array
+#if OTEL_EXPORTER_OTLP_PROTOCOL != OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
+
 static void addPointAttributes(JsonArray& attrArray,
                                const std::map<String, String>& callLabels) {
-  // Defaults first
   for (const auto& kv : defaultMetricLabels()) {
     JsonObject a = attrArray.add<JsonObject>();
     a["key"] = kv.first;
     a["value"].to<JsonObject>()["stringValue"] = kv.second;
   }
-  // Then per-call (override by reusing key downstream in the stack)
   for (const auto& kv : callLabels) {
     JsonObject a = attrArray.add<JsonObject>();
     a["key"] = kv.first;
@@ -25,7 +24,6 @@ static void addCommonResource(JsonObject& resource) {
     res.addResourceAttributes(resource);
     return;
   }
-
   JsonArray rattrs = resource["attributes"].to<JsonArray>();
   addResAttr(rattrs, "service.name",        defaultServiceName());
   addResAttr(rattrs, "service.instance.id", defaultServiceInstanceId());
@@ -36,6 +34,8 @@ static void addCommonScope(JsonObject& scope) {
   scope["name"]    = metricsScopeConfig().scopeName;
   scope["version"] = metricsScopeConfig().scopeVersion;
 }
+
+#endif // OTEL_EXPORTER_OTLP_PROTOCOL != OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 
 // ----------------- GAUGE -----------------
 void Metrics::buildAndSendGauge(const String& name, double value,

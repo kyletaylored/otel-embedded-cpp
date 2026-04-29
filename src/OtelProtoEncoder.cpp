@@ -34,22 +34,6 @@ static bool cb_cstr(pb_ostream_t* s, const pb_field_t* f, void* const* arg) {
          pb_encode_string(s, (const pb_byte_t*)str, strlen(str));
 }
 
-// Encode a std::pair<const char*, const char*> as a KeyValue with stringValue.
-static bool cb_kv_cstr(pb_ostream_t* s, const pb_field_t* f, void* const* arg) {
-  auto* p = *(const std::pair<const char*, const char*>**)arg;
-
-  opentelemetry_proto_common_v1_KeyValue kv = opentelemetry_proto_common_v1_KeyValue_init_zero;
-  kv.key.funcs.encode = cb_cstr;
-  kv.key.arg          = (void*)p->first;
-  kv.has_value        = true;
-  kv.value.which_value = opentelemetry_proto_common_v1_AnyValue_string_value_tag;
-  kv.value.value.string_value.funcs.encode = cb_cstr;
-  kv.value.value.string_value.arg          = (void*)p->second;
-
-  return pb_encode_tag_for_field(s, f) &&
-         pb_encode_submessage(s, opentelemetry_proto_common_v1_KeyValue_fields, &kv);
-}
-
 // ── Map<String,String> → repeated KeyValue ───────────────────────────────────
 
 struct MapCtx { const std::map<String,String>* m; };
@@ -92,44 +76,6 @@ static bool cb_merged_map_attrs(pb_ostream_t* s, const pb_field_t* f, void* cons
       if (!pb_encode_tag_for_field(s, f)) return false;
       if (!pb_encode_submessage(s, opentelemetry_proto_common_v1_KeyValue_fields, &entry)) return false;
     }
-  }
-  return true;
-}
-
-// ── Typed span/event attributes ──────────────────────────────────────────────
-
-struct AttrsCtx { const std::vector<Attr>* attrs; };
-
-static bool cb_typed_attrs(pb_ostream_t* s, const pb_field_t* f, void* const* arg) {
-  auto* ctx = *(AttrsCtx**)arg;
-  for (const auto& a : *ctx->attrs) {
-    opentelemetry_proto_common_v1_KeyValue entry = opentelemetry_proto_common_v1_KeyValue_init_zero;
-    entry.key.funcs.encode = cb_cstr;
-    entry.key.arg          = (void*)a.key.c_str();
-    entry.has_value        = true;
-
-    switch (a.type) {
-      case AttrType::Str:
-        entry.value.which_value = opentelemetry_proto_common_v1_AnyValue_string_value_tag;
-        entry.value.value.string_value.funcs.encode = cb_cstr;
-        entry.value.value.string_value.arg          = (void*)a.s.c_str();
-        break;
-      case AttrType::Int:
-        entry.value.which_value = opentelemetry_proto_common_v1_AnyValue_int_value_tag;
-        entry.value.value.int_value = a.i;
-        break;
-      case AttrType::Dbl:
-        entry.value.which_value = opentelemetry_proto_common_v1_AnyValue_double_value_tag;
-        entry.value.value.double_value = a.d;
-        break;
-      case AttrType::Bool:
-        entry.value.which_value = opentelemetry_proto_common_v1_AnyValue_bool_value_tag;
-        entry.value.value.bool_value = a.b;
-        break;
-    }
-
-    if (!pb_encode_tag_for_field(s, f)) return false;
-    if (!pb_encode_submessage(s, opentelemetry_proto_common_v1_KeyValue_fields, &entry)) return false;
   }
   return true;
 }
