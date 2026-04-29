@@ -82,6 +82,15 @@ private:
   static void buildAndSend(const String& severity, const String& message,
                            const std::map<String,String>& labels)
   {
+#if OTEL_EXPORTER_OTLP_PROTOCOL == OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
+    {
+      auto& ctx = currentTraceContext();
+      OTel::Proto::sendLog(severity, severityNumberFromText(severity), message,
+                           labels, defaultLabels(),
+                           ctx.valid() ? ctx.traceId : String(""),
+                           ctx.valid() ? ctx.spanId  : String(""));
+    }
+#else
     // Build OTLP/HTTP logs payload (ArduinoJson v7)
     JsonDocument doc;
 
@@ -136,6 +145,7 @@ private:
 
     // Send
     OTelSender::sendJson("/v1/logs", doc);
+#endif  // OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
   }
 };
 

@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -39,7 +39,20 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: PlatformIO Update
-        run: pio update
+        run: pio pkg update
+
+      # Remove any cached registry version so --lib "." always wins and we
+      # compile the local source, not the published package at the same version.
+      - name: Flush cached library
+        run: pio pkg uninstall --global --library "otel-embedded-cpp" 2>/dev/null || true
+
+      # ── Native unit tests (host GCC, no hardware required) ──────────────────
+      # Compiles and runs test/native/test_otlp.cpp against a fake OTelSender
+      # that captures emitted JSON so tests can assert on payload structure.
+      # GCC is pre-installed on ubuntu-latest; no extra toolchain step needed.
+
+      - name: Run native unit tests
+        run: pio test -e native
 
       # ── src/main.cpp (existing integration test) ───────────────────────────
 

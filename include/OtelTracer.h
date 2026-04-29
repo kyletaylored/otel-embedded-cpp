@@ -10,6 +10,7 @@
 #include "OtelDebug.h"
 #include "OtelDefaults.h"   // expects: nowUnixNano()
 #include "OtelSender.h"     // expects: OTelSender::sendJson(const char* path, const JsonDocument&)
+#include "OtelProtoEncoder.h"
 
 #if defined(ESP32)
   #include <esp_system.h>   // esp_random, esp_fill_random
@@ -118,7 +119,7 @@ struct Propagators {
 
     // Use a small document to avoid heap bloat; adjust if payloads are larger
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json);
+    DeserializationError err = deserializeJson(doc, json.c_str());
     if (err) return out;
 
     if (doc["traceparent"].is<const char*>()) {
@@ -553,6 +554,43 @@ public:
 
     const uint64_t endNs = nowUnixNano();
 
+#if OTEL_EXPORTER_OTLP_PROTOCOL == OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
+    {
+      std::vector<OTel::Proto::Attr> protoAttrs;
+      protoAttrs.reserve(attrs_.size());
+      for (const auto& a : attrs_) {
+        OTel::Proto::Attr pa;
+        pa.key  = a.key;
+        pa.type = static_cast<OTel::Proto::AttrType>(static_cast<int>(a.type));
+        pa.s    = a.s;
+        pa.i    = a.i;
+        pa.d    = a.d;
+        pa.b    = a.b;
+        protoAttrs.push_back(std::move(pa));
+      }
+      std::vector<OTel::Proto::Event> protoEvents;
+      protoEvents.reserve(events_.size());
+      for (const auto& ev : events_) {
+        OTel::Proto::Event pe;
+        pe.name = ev.name;
+        pe.t    = ev.t;
+        pe.attrs.reserve(ev.attrs.size());
+        for (const auto& a : ev.attrs) {
+          OTel::Proto::Attr pa;
+          pa.key  = a.key;
+          pa.type = static_cast<OTel::Proto::AttrType>(static_cast<int>(a.type));
+          pa.s    = a.s;
+          pa.i    = a.i;
+          pa.d    = a.d;
+          pa.b    = a.b;
+          pe.attrs.push_back(std::move(pa));
+        }
+        protoEvents.push_back(std::move(pe));
+      }
+      OTel::Proto::sendSpan(name_, traceId_, spanId_, prevSpanId_,
+                            startNs_, endNs, protoAttrs, protoEvents);
+    }
+#else
     // Build minimal OTLP/HTTP JSON payload for a single span
     JsonDocument doc;
 
@@ -624,6 +662,7 @@ public:
 
     // Send
     OTelSender::sendJson("/v1/traces", doc);
+#endif  // OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF
 
     // Restore previous active context
     currentTraceContext().traceId = prevTraceId_;
