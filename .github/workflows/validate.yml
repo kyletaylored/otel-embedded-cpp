@@ -46,6 +46,14 @@ jobs:
       - name: Flush cached library
         run: pio pkg uninstall --global --library "otel-embedded-cpp" 2>/dev/null || true
 
+      # ── Native unit tests (host GCC, no hardware required) ──────────────────
+      # Compiles and runs test/native/test_otlp.cpp against a fake OTelSender
+      # that captures emitted JSON so tests can assert on payload structure.
+      # GCC is pre-installed on ubuntu-latest; no extra toolchain step needed.
+
+      - name: Run native unit tests
+        run: pio test -e native --project-dir . --project-conf platformio.ini
+
       # ── src/main.cpp (existing integration test) ───────────────────────────
 
       - name: Build src for ESP32 (esp32dev)
