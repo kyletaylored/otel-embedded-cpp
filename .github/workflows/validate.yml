@@ -39,7 +39,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: PlatformIO Update
-        run: pio update
+        run: pio pkg update
 
       # Remove any cached registry version so --lib "." always wins and we
       # compile the local source, not the published package at the same version.
