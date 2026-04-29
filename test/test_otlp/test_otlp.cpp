@@ -1,3 +1,4 @@
+#include <Arduino.h>      // must come before ArduinoJson.h to get matching inline namespace
 #include <unity.h>
 #include <ArduinoJson.h>
 
@@ -6,6 +7,10 @@
 #include "OtelLogger.h"
 #include "OtelTracer.h"
 #include "fake_sender.h"
+
+// Pull in non-inline implementations in the same TU so static-inline singletons
+// (defaultResource, metricsScopeConfig, etc.) are shared with the test fixtures.
+#include "../../src/OtelMetrics.cpp"
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
 

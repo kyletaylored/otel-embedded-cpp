@@ -119,7 +119,7 @@ struct Propagators {
 
     // Use a small document to avoid heap bloat; adjust if payloads are larger
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json);
+    DeserializationError err = deserializeJson(doc, json.c_str());
     if (err) return out;
 
     if (doc["traceparent"].is<const char*>()) {
