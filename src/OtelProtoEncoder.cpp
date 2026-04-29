@@ -16,6 +16,8 @@
 
 #include "OtelProtoEncoder.h"
 #include "OtelTracer.h"   // defaultServiceName(), defaultServiceInstanceId(), defaultHostName()
+#include "OtelMetrics.h"  // metricsScopeConfig()
+#include "OtelLogger.h"   // logScopeConfig()
 
 #include <pb_encode.h>
 
