@@ -48,9 +48,11 @@ public:
 
 class Stream : public Print {
 public:
-  virtual int available() { return 0; }
-  virtual int read()      { return -1; }
-  virtual int peek()      { return -1; }
+  virtual int    available()                         { return 0; }
+  virtual int    read()                              { return -1; }
+  virtual int    peek()                              { return -1; }
+  virtual size_t readBytes(char*, size_t)            { return 0; }
+  virtual size_t readBytes(uint8_t* b, size_t n)     { return readBytes((char*)b, n); }
 };
 
 // ── String ────────────────────────────────────────────────────────────────────
@@ -91,6 +93,9 @@ public:
   String  operator+(const char*   s) const { return String(std::string(*this) + s); }
   bool    operator==(const char*   s) const { return compare(s) == 0; }
   bool    operator!=(const char*   s) const { return compare(s) != 0; }
+
+  bool concat(const char* s)   { if (s) append(s); return true; }
+  bool concat(const String& s) { append(s); return true; }
 };
 
 inline String operator+(const char* a, const String& b) {
