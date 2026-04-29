@@ -1,6 +1,6 @@
 {
   "name": "otel-embedded-cpp",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "OpenTelemetry logging, tracing, and metrics for embedded C++ devices (ESP32, RP2040 Pico W, ESP8266).",
   "keywords": [
     "OpenTelemetry",
@@ -37,6 +37,9 @@
       "version": "^0.4.91"
     }
   ],
+  "build": {
+    "srcFilter": ["+<*.cpp>", "-<main.cpp>"]
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/proffalken/otel-embedded-cpp.git"

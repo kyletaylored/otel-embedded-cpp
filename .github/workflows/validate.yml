@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -40,6 +40,11 @@ jobs:
 
       - name: PlatformIO Update
         run: pio update
+
+      # Remove any cached registry version so --lib "." always wins and we
+      # compile the local source, not the published package at the same version.
+      - name: Flush cached library
+        run: pio pkg uninstall --global --library "otel-embedded-cpp" 2>/dev/null || true
 
       # ── src/main.cpp (existing integration test) ───────────────────────────
 
