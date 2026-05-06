@@ -152,6 +152,27 @@ public:
    */
   static bool     queueIsHealthy();
 
+  /**
+   * Add a custom HTTP header that will be sent on every OTLP request for the
+   * given signal path. Useful for backend-specific configuration when the
+   * value is awkward to embed via -DOTEL_EXPORTER_OTLP_*_HEADERS build flag
+   * (e.g. JSON values containing quotes/commas).
+   *
+   * Headers added at runtime are layered on top of any parsed from the build
+   * flags. Call from setup() or after `Tracer::begin()` — order doesn't matter
+   * relative to send calls because headers are looked up per request.
+   *
+   * @param path   OTLP signal path: "/v1/logs", "/v1/metrics", or "/v1/traces".
+   * @param key    HTTP header name.
+   * @param value  HTTP header value (sent verbatim — caller is responsible
+   *               for any required encoding).
+   *
+   * Example (Datadog OTLP-to-tag promotion):
+   *   OTelSender::addHeader("/v1/metrics", "dd-otel-metric-config",
+   *                         "{\"resource_attributes_as_tags\":true}");
+   */
+  static void addHeader(const char* path, const String& key, const String& value);
+
 private:
   // ---------- SPSC ring buffer (core0 producer -> core1 consumer) ----------
   static constexpr size_t QCAP = OTEL_QUEUE_CAPACITY;
