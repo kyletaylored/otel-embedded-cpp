@@ -19,13 +19,13 @@ struct MetricsScopeConfig {
 };
 
 /** Returns the process-wide MetricsScopeConfig singleton. */
-static inline MetricsScopeConfig& metricsScopeConfig() {
+inline MetricsScopeConfig& metricsScopeConfig() {
   static MetricsScopeConfig cfg;
   return cfg;
 }
 
 /** Returns the process-wide default metric labels map (merged into every datapoint). */
-static inline std::map<String, String>& defaultMetricLabels() {
+inline std::map<String, String>& defaultMetricLabels() {
   static std::map<String, String> labels;
   return labels;
 }

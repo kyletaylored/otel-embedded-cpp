@@ -251,9 +251,9 @@ void OTelSender::sendProto(const char* path, const uint8_t* buf, size_t len) {
 #else
   // Copy raw bytes into a String to reuse the existing queue/send path.
   // The String is treated as an opaque byte container, not a text string.
-  String payload;
-  payload.reserve(len);
-  for (size_t i = 0; i < len; ++i) payload += (char)buf[i];
+  // Using the length-based constructor avoids the O(n) append loop and
+  // correctly handles null bytes that are valid in protobuf payloads.
+  String payload(reinterpret_cast<const char*>(buf), len);
 
 #ifdef ARDUINO_ARCH_RP2040
   launchWorkerOnce_();

@@ -36,7 +36,7 @@ struct TraceContext {
 };
 
 /** Returns the process-wide active TraceContext singleton. */
-static inline TraceContext& currentTraceContext() {
+inline TraceContext& currentTraceContext() {
   static TraceContext ctx;
   return ctx;
 }
@@ -310,10 +310,10 @@ static inline String defaultServiceName() {
   return String("embedded-service");
 #endif
 }
-/** @return Default service instance ID from @c OTEL_SERVICE_INSTANCE_ID, or the chip ID hex. */
+/** @return Default service instance ID from @c OTEL_SERVICE_INSTANCE, or the chip ID hex. */
 static inline String defaultServiceInstanceId() {
-#ifdef OTEL_SERVICE_INSTANCE_ID
-  return String(OTEL_SERVICE_INSTANCE_ID);
+#ifdef OTEL_SERVICE_INSTANCE
+  return String(OTEL_SERVICE_INSTANCE);
 #else
   return chipIdHex();
 #endif
@@ -487,7 +487,7 @@ struct TracerConfig {
 };
 
 /** Returns the process-wide TracerConfig singleton. */
-static inline TracerConfig& tracerConfig() {
+inline TracerConfig& tracerConfig() {
   static TracerConfig cfg;
   return cfg;
 }

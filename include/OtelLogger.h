@@ -35,13 +35,13 @@ struct LogScopeConfig {
 };
 
 /** Returns the process-wide LogScopeConfig singleton. */
-static inline LogScopeConfig& logScopeConfig() {
+inline LogScopeConfig& logScopeConfig() {
   static LogScopeConfig cfg;
   return cfg;
 }
 
 /** Returns the process-wide default log labels map (merged into every log record). */
-static inline std::map<String, String>& defaultLabels() {
+inline std::map<String, String>& defaultLabels() {
   static std::map<String, String> labels;
   return labels;
 }

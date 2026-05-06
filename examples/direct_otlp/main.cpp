@@ -159,10 +159,10 @@ void loop() {
     OTel::Metrics::gauge("sensor.temperature", temperature, "Cel",
                          {{"sensor.id", "1"}});
 
-    // sum: monotonic counter, DELTA temporality (required by vendors like Datadog).
-    static double totalReadings = 0;
-    totalReadings += 1.0;
-    OTel::Metrics::sum("sensor.readings.total", totalReadings,
+    // sum: monotonic counter. Pass 1.0 per call with DELTA temporality so
+    // the value represents the increment since the last report, not a running
+    // total. Use CUMULATIVE + an accumulator if your backend requires it.
+    OTel::Metrics::sum("sensor.readings.total", 1.0,
                        /*isMonotonic=*/true, "DELTA", "1",
                        {{"sensor.id", "1"}});
 

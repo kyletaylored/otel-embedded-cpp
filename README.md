@@ -187,7 +187,7 @@ Set via `-D` flags in `platformio.ini` `build_flags`.
 | Macro                    | Default            | Description                                     |
 | ------------------------ | ------------------ | ----------------------------------------------- |
 | `OTEL_SERVICE_NAME`      | `"embedded-service"` | Name of your service                          |
-| `OTEL_SERVICE_INSTANCE_ID` | chip ID          | Unique instance identifier                      |
+| `OTEL_SERVICE_INSTANCE`  | chip ID            | Unique instance identifier                      |
 | `OTEL_HOST_NAME`         | `"ESP-<chipid>"`   | Host name reported in resource attributes       |
 
 ### Send behaviour

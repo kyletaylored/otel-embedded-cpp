@@ -1,5 +1,12 @@
 #pragma once
 
+// Ensure the protocol macros are defined before we evaluate the guard below.
+// OTEL_EXPORTER_OTLP_PROTOCOL defaults to 0 (JSON) and
+// OTEL_EXPORTER_OTLP_PROTOCOL_HTTP_PROTOBUF is 1, both defined in OtelSender.h.
+// Without this include, an undefined macro would expand to 0 on both sides,
+// making the guard evaluate to true and silently activating the protobuf path.
+#include "OtelSender.h"
+
 // This header is only active when the protobuf protocol is selected.
 // It provides encode functions called by Metrics, Logger, and Tracer
 // instead of building a JsonDocument.
