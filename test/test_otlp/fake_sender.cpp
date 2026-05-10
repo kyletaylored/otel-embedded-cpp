@@ -42,7 +42,7 @@ uint32_t OTelSender::droppedCount()     { return 0; }
 bool     OTelSender::queueIsHealthy()   { return true; }
 
 // ── Private helper stubs ──────────────────────────────────────────────────────
-bool   OTelSender::enqueue_(const char*, const char*, String&&) { return true; }
+bool   OTelSender::enqueue_(const char*, const char*, std::vector<uint8_t>&&) { return true; }
 bool   OTelSender::dequeue_(OTelQueuedItem&)                    { return false; }
 void   OTelSender::pumpOnce_()                                   {}
 void   OTelSender::workerLoop_()                                 {}

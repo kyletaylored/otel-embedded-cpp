@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <atomic>
+#include <vector>
+#include <cstdint>
 // Optional compile-time on/off switch for all network sends.
 // You can set -DOTEL_SEND_ENABLE=0 in platformio.ini for latency tests.
 #ifndef OTEL_SEND_ENABLE
@@ -94,18 +96,29 @@
 #ifndef OTEL_PROTO_BUFFER_SIZE
 #define OTEL_PROTO_BUFFER_SIZE 1024
 #endif
+#if OTEL_PROTO_BUFFER_SIZE <= 0
+#error "OTEL_PROTO_BUFFER_SIZE must be > 0"
+#endif
 
 // Internal queue capacity for async sender on RP2040.
 // Keep small to bound RAM; increase if you see drops.
 #ifndef OTEL_QUEUE_CAPACITY
 #define OTEL_QUEUE_CAPACITY 16
 #endif
+#if OTEL_QUEUE_CAPACITY < 2
+#error "OTEL_QUEUE_CAPACITY must be >= 2 (one slot is unusable in an SPSC ring buffer)"
+#endif
 
-/** Internal queue item for the RP2040 SPSC ring buffer (core-0 → core-1). */
+/**
+ * Internal queue item for the RP2040 SPSC ring buffer (core-0 → core-1).
+ * The payload is stored as a raw byte buffer so that protobuf bodies (which
+ * may contain embedded null bytes) round-trip through the queue and the
+ * binary HTTPClient::POST(uint8_t*, size_t) overload without truncation.
+ */
 struct OTelQueuedItem {
-  const char* path;        // "/v1/logs", "/v1/traces", "/v1/metrics"
-  const char* contentType; // "application/json" or "application/x-protobuf"
-  String payload;          // serialized body (JSON text or raw protobuf bytes)
+  const char* path;              // "/v1/logs", "/v1/traces", "/v1/metrics"
+  const char* contentType;       // "application/json" or "application/x-protobuf"
+  std::vector<uint8_t> payload;  // serialized body (JSON text or raw protobuf bytes)
 };
 
 /**
@@ -184,7 +197,7 @@ private:
   static std::atomic<uint32_t> drops_;
   static std::atomic<bool>    worker_started_;
 
-  static bool enqueue_(const char* path, const char* contentType, String&& payload);
+  static bool enqueue_(const char* path, const char* contentType, std::vector<uint8_t>&& payload);
   static bool dequeue_(OTelQueuedItem& out);
 
   // ---------- Worker ----------

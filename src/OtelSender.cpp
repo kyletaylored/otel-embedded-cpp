@@ -165,7 +165,7 @@ String OTelSender::fullUrl_(const char *path)
 
 // Executes a single POST. Handles plain HTTP and HTTPS transparently based on
 // the URL scheme. Custom headers are applied after Content-Type.
-static void doPost_(const String &url, const String &payload,
+static void doPost_(const String &url, const std::vector<uint8_t> &payload,
                     const char *path, const char *contentType)
 {
   HTTPClient http;
@@ -179,7 +179,10 @@ static void doPost_(const String &url, const String &payload,
     http.addHeader("Content-Type", contentType);
     for (const auto &h : hdrs)
       http.addHeader(h.first, h.second);
-    (void)http.POST(payload);
+    // Use the binary-safe (uint8_t*, size_t) overload so embedded null bytes
+    // in protobuf bodies are preserved. The String-based overload on some
+    // HTTPClient implementations would truncate at the first null byte.
+    (void)http.POST(const_cast<uint8_t *>(payload.data()), payload.size());
     http.end();
   };
 
@@ -212,7 +215,7 @@ static void doPost_(const String &url, const String &payload,
 
 // ---------- Queue (SPSC) ----------
 
-bool OTelSender::enqueue_(const char *path, const char *contentType, String &&payload)
+bool OTelSender::enqueue_(const char *path, const char *contentType, std::vector<uint8_t> &&payload)
 {
   size_t h = head_.load(std::memory_order_relaxed);
   size_t t = tail_.load(std::memory_order_acquire);
@@ -241,7 +244,10 @@ bool OTelSender::dequeue_(OTelQueuedItem &out)
     return false;
 
   out = std::move(q_[t]);
-  q_[t].payload = String();
+  // Free the slot's allocation now rather than waiting for the next
+  // overwrite, so a long idle period doesn't pin RAM proportional to
+  // the largest payload ever sent.
+  std::vector<uint8_t>().swap(q_[t].payload);
   size_t next = (t + 1) % QCAP;
   tail_.store(next, std::memory_order_release);
   return true;
@@ -325,8 +331,14 @@ void OTelSender::sendJson(const char *path, JsonDocument &doc)
   return;
 #else
   freezeHeaders_();
-  String payload;
-  serializeJson(doc, payload);
+  // Serialise JSON to a temporary String, then copy bytes into a binary
+  // buffer for the queue/send path. JSON is UTF-8 text without embedded
+  // null bytes, so the copy is safe; we use a vector here for symmetry
+  // with the protobuf path and to share the binary-safe POST overload.
+  String text;
+  serializeJson(doc, text);
+  const uint8_t *begin = reinterpret_cast<const uint8_t *>(text.c_str());
+  std::vector<uint8_t> payload(begin, begin + text.length());
 
 #ifdef ARDUINO_ARCH_RP2040
   launchWorkerOnce_();
@@ -346,11 +358,10 @@ void OTelSender::sendProto(const char *path, const uint8_t *buf, size_t len)
   return;
 #else
   freezeHeaders_();
-  // Copy raw bytes into a String to reuse the existing queue/send path.
-  // The String is treated as an opaque byte container, not a text string.
-  // Using the length-based constructor avoids the O(n) append loop and
-  // correctly handles null bytes that are valid in protobuf payloads.
-  String payload(reinterpret_cast<const char*>(buf), len);
+  // Binary buffer round-trips embedded null bytes in protobuf payloads
+  // through the queue and the HTTPClient::POST(uint8_t*, size_t) overload
+  // without truncation.
+  std::vector<uint8_t> payload(buf, buf + len);
 
 #ifdef ARDUINO_ARCH_RP2040
   launchWorkerOnce_();
