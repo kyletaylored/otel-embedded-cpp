@@ -159,8 +159,10 @@ public:
    * (e.g. JSON values containing quotes/commas).
    *
    * Headers added at runtime are layered on top of any parsed from the build
-   * flags. Call from setup() or after `Tracer::begin()` — order doesn't matter
-   * relative to send calls because headers are looked up per request.
+   * flags. Call from setup() or after `Tracer::begin()` — must be called
+   * before the first send. Once the first send happens the header lists are
+   * frozen so the RP2040 worker on core 1 can read them without locking;
+   * later addHeader() calls are silently dropped.
    *
    * @param path   OTLP signal path: "/v1/logs", "/v1/metrics", or "/v1/traces".
    * @param key    HTTP header name.

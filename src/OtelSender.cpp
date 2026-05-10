@@ -68,6 +68,11 @@ struct SignalHeaders {
   std::vector<std::pair<String, String>> log, trace, metric;
 };
 
+// Once a send happens, headers are read by the RP2040 worker on core 1.
+// We freeze the SignalHeaders vectors at that point so further addHeader()
+// calls from core 0 cannot reallocate them mid-iteration (UB).
+static std::atomic<bool> headers_frozen_{false};
+
 static SignalHeaders &mutableHeaders_()
 {
   static SignalHeaders s;
@@ -86,6 +91,18 @@ static SignalHeaders &mutableHeaders_()
   return s;
 }
 
+// Touch the headers on the current core to force lazy init, then freeze.
+// After this, the RP2040 worker on core 1 only ever reads the vectors so
+// no synchronisation is required for the read path in doPost_().
+static void freezeHeaders_()
+{
+  if (!headers_frozen_.load(std::memory_order_acquire))
+  {
+    (void)mutableHeaders_();
+    headers_frozen_.store(true, std::memory_order_release);
+  }
+}
+
 // Returns the merged header list for the given OTLP path.
 static const std::vector<std::pair<String, String>> &headersForPath_(const char *path)
 {
@@ -98,8 +115,11 @@ static const std::vector<std::pair<String, String>> &headersForPath_(const char 
 }
 
 // Public API: add a header at runtime to a specific OTLP signal path.
+// Must be called before the first send; once headers are frozen the call
+// is rejected to avoid racing with the RP2040 worker reading the vectors.
 void OTelSender::addHeader(const char *path, const String &key, const String &value)
 {
+  if (headers_frozen_.load(std::memory_order_acquire)) return;
   auto &s = mutableHeaders_();
   if (path && strcmp(path, "/v1/logs") == 0)         s.log.push_back({key, value});
   else if (path && strcmp(path, "/v1/traces") == 0)  s.trace.push_back({key, value});
@@ -169,6 +189,13 @@ static void doPost_(const String &url, const String &payload,
     WiFiClientSecure sc;
 #if OTEL_TLS_INSECURE
     sc.setInsecure();
+#elif defined(OTEL_TLS_CA_CERT)
+    // Validated TLS: caller must -DOTEL_TLS_CA_CERT="..." with a PEM-encoded
+    // root CA. Without this, setting OTEL_TLS_INSECURE=0 leaves the client
+    // with no trust anchors and the handshake will fail at runtime.
+    sc.setCACert(OTEL_TLS_CA_CERT);
+#else
+#error "OTEL_TLS_INSECURE=0 requires -DOTEL_TLS_CA_CERT=\"...PEM...\" to be defined."
 #endif
     fire(http.begin(sc, url));
   }
@@ -276,7 +303,13 @@ uint32_t OTelSender::droppedCount()
 
 bool OTelSender::queueIsHealthy()
 {
+#ifdef ARDUINO_ARCH_RP2040
   return worker_started_.load(std::memory_order_relaxed);
+#else
+  // No async worker on synchronous platforms — sends happen inline, so
+  // there is no queue health to report. Always healthy by definition.
+  return true;
+#endif
 }
 
 // ---------- Public send API ----------
@@ -291,6 +324,7 @@ void OTelSender::sendJson(const char *path, JsonDocument &doc)
   (void)doc;
   return;
 #else
+  freezeHeaders_();
   String payload;
   serializeJson(doc, payload);
 
@@ -311,6 +345,7 @@ void OTelSender::sendProto(const char *path, const uint8_t *buf, size_t len)
   (void)len;
   return;
 #else
+  freezeHeaders_();
   // Copy raw bytes into a String to reuse the existing queue/send path.
   // The String is treated as an opaque byte container, not a text string.
   // Using the length-based constructor avoids the O(n) append loop and
