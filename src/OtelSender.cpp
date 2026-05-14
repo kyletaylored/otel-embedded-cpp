@@ -163,47 +163,75 @@ String OTelSender::fullUrl_(const char *path)
 
 // ---------- HTTP/HTTPS POST ----------
 
+// Persistent transport. Allocating a fresh WiFiClientSecure + HTTPClient on
+// every send caused two problems on memory-tight ESP32 silicon:
+//   1. ~30 KB of mbedtls TLS context is allocated per call, and the
+//      BIGNUM/ECP/MD modules need contiguous heap blocks for handshake
+//      working memory. Under heap pressure (BT + WiFi + tasks resident),
+//      these allocations fail with err=-19840 (ECP) or err=-20864 (MD)
+//      and every send silently drops.
+//   2. Even when handshake succeeds, doing a full TLS negotiation per
+//      send blocks the worker for ~500 ms per item and pegs the CPU on
+//      mbedtls EC math.
+//
+// We keep one WiFiClientSecure + HTTPClient at file scope, pay the
+// handshake cost once on the first send, and reuse the socket via
+// HTTPClient::setReuse(true) for every subsequent send. The OTLP host
+// rarely changes (signals all live under the same OTEL_EXPORTER_OTLP_-
+// ENDPOINT base), so the connection survives across metric/log/trace
+// boundaries.
+static WiFiClientSecure tlsClient_;
+static HTTPClient       httpClient_;
+static String           tlsClientHost_;
+static bool             httpInit_ = false;
+
+static void ensureHttpInit_()
+{
+  if (httpInit_) return;
+#if OTEL_TLS_INSECURE
+  tlsClient_.setInsecure();
+#elif defined(OTEL_TLS_CA_CERT)
+  tlsClient_.setCACert(OTEL_TLS_CA_CERT);
+#else
+#error "OTEL_TLS_INSECURE=0 requires -DOTEL_TLS_CA_CERT=\"...PEM...\" to be defined."
+#endif
+  tlsClient_.setHandshakeTimeout(20);
+  tlsClient_.setTimeout(15);
+  httpClient_.setReuse(true);
+  httpClient_.setTimeout(15000);
+  httpInit_ = true;
+}
+
 // Executes a single POST. Handles plain HTTP and HTTPS transparently based on
 // the URL scheme. Custom headers are applied after Content-Type.
 static void doPost_(const String &url, const std::vector<uint8_t> &payload,
                     const char *path, const char *contentType)
 {
-  HTTPClient http;
   const auto &hdrs = headersForPath_(path);
 
-  // Lambda keeps the send logic in one place regardless of client type.
   auto fire = [&](bool ok)
   {
     if (!ok)
       return;
-    http.addHeader("Content-Type", contentType);
+    httpClient_.addHeader("Content-Type", contentType);
     for (const auto &h : hdrs)
-      http.addHeader(h.first, h.second);
-    // Use the binary-safe (uint8_t*, size_t) overload so embedded null bytes
-    // in protobuf bodies are preserved. The String-based overload on some
-    // HTTPClient implementations would truncate at the first null byte.
-    (void)http.POST(const_cast<uint8_t *>(payload.data()), payload.size());
-    http.end();
+      httpClient_.addHeader(h.first, h.second);
+    (void)httpClient_.POST(const_cast<uint8_t *>(payload.data()), payload.size());
+    httpClient_.end();
   };
 
   if (url.startsWith("https://"))
   {
-    // WiFiClientSecure must remain in scope until after http.end() (fire()).
-    WiFiClientSecure sc;
-#if OTEL_TLS_INSECURE
-    sc.setInsecure();
-#elif defined(OTEL_TLS_CA_CERT)
-    // Validated TLS: caller must -DOTEL_TLS_CA_CERT="..." with a PEM-encoded
-    // root CA. Without this, setting OTEL_TLS_INSECURE=0 leaves the client
-    // with no trust anchors and the handshake will fail at runtime.
-    sc.setCACert(OTEL_TLS_CA_CERT);
-#else
-#error "OTEL_TLS_INSECURE=0 requires -DOTEL_TLS_CA_CERT=\"...PEM...\" to be defined."
-#endif
-    fire(http.begin(sc, url));
+    ensureHttpInit_();
+    fire(httpClient_.begin(tlsClient_, url));
   }
   else
   {
+    // Plain HTTP path keeps the per-call allocation pattern — exporters
+    // rarely sit behind plain HTTP in production, and we don't want the
+    // persistent secure client to leak its mbedtls state into a different
+    // unrelated http session.
+    HTTPClient http;
 #if defined(ESP8266)
     WiFiClient wc;
     fire(http.begin(wc, url));
